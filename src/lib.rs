@@ -1,6 +1,5 @@
 #![deny(clippy::all, clippy::pedantic)]
 #![feature(async_iterator)]
-#![feature(never_type)]
 #![feature(async_fn_in_trait)]
 pub mod auth;
 pub mod errors;
@@ -17,6 +16,7 @@ use multireddit::{response::MultiResponse, MultiPath, Multireddit};
 use response::Generic;
 use serde::de::DeserializeOwned;
 use subreddit::Subreddit;
+use tracing::trace;
 use url::Url;
 
 pub type Result<T> = std::result::Result<T, crate::errors::Error>;
@@ -52,6 +52,7 @@ impl<A: Authenticator + Send + Sync> Client<A> {
 }
 
 impl<A: Authenticator> Client<A> {
+    #[tracing::instrument(name = "GET", skip_all, fields(path = %path.display()))]
     pub(crate) async fn get_json<T: DeserializeOwned>(
         &self,
         path: &Path,
@@ -59,7 +60,8 @@ impl<A: Authenticator> Client<A> {
     ) -> Result<T> {
         let url = build_url(self.base_url.clone(), path, params);
 
-        eprintln!("{url}");
+        trace!(url = %url, "fetching");
+
         let mut req = self.client.get(url);
 
         #[cfg(feature = "shared_auth")]
@@ -101,6 +103,7 @@ impl<A: Authenticator> Client<A> {
 
     /// # Errors
     /// Returns `Err` if the underlying [`reqwest::Client::post`] call fails.
+    #[tracing::instrument(name = "Logging in", skip_all)]
     pub async fn login(&mut self) -> Result<()> {
         #[cfg(feature = "shared_auth")]
         {
@@ -116,6 +119,7 @@ impl<A: Authenticator> Client<A> {
 
     /// # Errors
     /// Returns `Err` if the underlying [`reqwest::Client::post`] call fails.
+    #[tracing::instrument(name = "Logging out", skip_all)]
     pub async fn logout(&mut self) -> Result<()> {
         #[cfg(feature = "shared_auth")]
         {
