@@ -65,7 +65,7 @@ impl MultiPath {
 
 impl From<&MultiPath> for PathBuf {
     fn from(value: &MultiPath) -> Self {
-        let mut starting: PathBuf = "api/multi".into();
+        let mut starting: Self = "api/multi".into();
 
         starting.extend(&["user", &value.username, "m", &value.name]);
         starting
@@ -105,9 +105,7 @@ mod test {
         let pkg_name = env!("CARGO_PKG_NAME");
         let username = var("REDDIT_USERNAME").unwrap();
 
-        let mut client = Client::anonymous(&format!("{pkg_name} (by u/{username})"));
-
-        assert!(client.login().await.is_ok());
+        let client = Client::new(&format!("{pkg_name} (by u/{username})"));
 
         let multi = client
             .multi(MultiPath::new("singshredcode", "animal_subbies"))
@@ -120,8 +118,7 @@ mod test {
         let pkg_name = env!("CARGO_PKG_NAME");
         let username = var("REDDIT_USERNAME").unwrap();
 
-        let mut client = Client::anonymous(&format!("{pkg_name} (by u/{username})"));
-        assert!(client.login().await.is_ok());
+        let client = Client::new(&format!("{pkg_name} (by u/{username})"));
 
         let multi = client
             .multi(MultiPath::new("singshredcode", "animal_subbies"))

@@ -49,7 +49,7 @@ pub enum TimePeriod {
 
 impl Sort {
     #[must_use]
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Top(_) => "top",
             Self::Controversial(_) => "controversial",
@@ -62,7 +62,7 @@ impl Sort {
 
 impl TimePeriod {
     #[must_use]
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Now => "hour",
             Self::Today => "day",
@@ -104,13 +104,13 @@ impl Options {
     }
 
     #[must_use]
-    pub fn count(mut self, count: u64) -> Self {
+    pub const fn count(mut self, count: u64) -> Self {
         self.count = count;
         self
     }
 
     #[must_use]
-    pub fn limit(mut self, limit: u64) -> Self {
+    pub const fn limit(mut self, limit: u64) -> Self {
         self.limit = limit;
         self
     }

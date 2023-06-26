@@ -1,5 +1,7 @@
-#![deny(clippy::all, clippy::pedantic)]
+#![deny(clippy::all, clippy::pedantic, clippy::perf)]
+#![warn(clippy::nursery)]
 #![feature(async_fn_in_trait)]
+#![allow(clippy::implicit_return)]
 
 pub mod auth;
 pub mod errors;
@@ -11,7 +13,7 @@ use std::path::{Path, PathBuf};
 #[cfg(feature = "shared_auth")]
 use std::sync::Arc;
 
-use auth::Authenticator;
+use auth::{Anon, Authenticator, Password};
 use multireddit::{response::MultiResponse, MultiPath, Multireddit};
 use response::Generic;
 use serde::de::DeserializeOwned;
@@ -23,11 +25,15 @@ pub type Result<T> = std::result::Result<T, crate::errors::Error>;
 
 #[derive(Clone)]
 pub struct Client<A: Authenticator> {
+    /// The [`Authenticator`] implementor we're going to use for this [`Client`].
     #[cfg(feature = "shared_auth")]
     authenticator: Arc<tokio::sync::RwLock<A>>,
+    /// The [`Authenticator`] implementor we're going to use for this [`Client`].
     #[cfg(not(feature = "shared_auth"))]
     authenticator: A,
+    /// The internal client we use to make requests with.
     client: reqwest::Client,
+    /// The base API URL of this Reddit [`Client`]
     base_url: Url,
 }
 
@@ -39,7 +45,10 @@ pub trait Stream {
     async fn next(&mut self) -> Option<Self::Item>;
 }
 
-impl<A: Authenticator + Send + Sync> Client<A> {
+impl<A> Client<A>
+where
+    A: Authenticator,
+{
     #[must_use]
     pub fn subreddit(&self, subreddit: &str) -> Subreddit<A> {
         Subreddit::new(subreddit, self.clone())
@@ -56,56 +65,6 @@ impl<A: Authenticator + Send + Sync> Client<A> {
             Generic::LabeledMulti { data } => Ok(data.into_usable(self)),
             other => unimplemented!("expected LabeledMulti but got {}", other.kind_name()),
         }
-    }
-
-    pub fn new(authenticator: A, user_agent: &str) -> Self {
-        let client = reqwest::Client::builder()
-            .user_agent(user_agent)
-            .build()
-            .expect("this to be a valid client");
-
-        Self {
-            base_url: authenticator.base_url(),
-
-            #[cfg(not(feature = "shared_auth"))]
-            authenticator,
-            #[cfg(feature = "shared_auth")]
-            authenticator: Arc::new(tokio::sync::RwLock::new(authenticator)),
-
-            client,
-        }
-    }
-
-    /// # Errors
-    /// Returns `Err` if the underlying [`reqwest::Client::post`] call fails.
-    #[tracing::instrument(name = "Logging in", skip_all)]
-    pub async fn login(&mut self) -> Result<()> {
-        #[cfg(feature = "shared_auth")]
-        {
-            let mut guard = self.authenticator.write().await;
-            guard.login(&self.client).await?;
-        }
-        #[cfg(not(feature = "shared_auth"))]
-        {
-            self.authenticator.login(&self.client).await?;
-        }
-        Ok(())
-    }
-
-    /// # Errors
-    /// Returns `Err` if the underlying [`reqwest::Client::post`] call fails.
-    #[tracing::instrument(name = "Logging out", skip_all)]
-    pub async fn logout(&mut self) -> Result<()> {
-        #[cfg(feature = "shared_auth")]
-        {
-            let mut guard = self.authenticator.write().await;
-            guard.logout(&self.client).await?;
-        }
-        #[cfg(not(feature = "shared_auth"))]
-        {
-            self.authenticator.logout(&self.client).await?;
-        }
-        Ok(())
     }
 
     #[tracing::instrument(name = "GET", skip_all, fields(path = %path.display()))]
@@ -140,13 +99,102 @@ impl<A: Authenticator + Send + Sync> Client<A> {
     }
 }
 
-impl Client<crate::auth::anonymous::Auth> {
+impl Client<Anon> {
+    /// Creates a new, logged out, [`Client`] instance.
     #[must_use]
-    pub fn anonymous(user_agent: &str) -> Self {
-        Self::new(crate::auth::anonymous::Auth::new(), user_agent)
+    pub fn new(user_agent: &str) -> Self {
+        let client = reqwest::Client::builder()
+            .user_agent(user_agent)
+            .build()
+            .expect("this to be a valid client");
+        let auth = Anon::new();
+
+        Self {
+            base_url: auth.base_url(),
+
+            #[cfg(not(feature = "shared_auth"))]
+            authenticator: auth,
+            #[cfg(feature = "shared_auth")]
+            authenticator: Arc::new(tokio::sync::RwLock::new(auth)),
+
+            client,
+        }
+    }
+
+    /// Logs in this [`Client`] instance.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use reddit_api::auth;
+    ///
+    /// let auth = auth::Password::new("client_id", "client_secret", "username", "password");
+    /// let client = reddit_api::Client::new("test by u/username").login(auth).await.unwrap();
+    ///
+    /// let sub = client.subreddit("argentina").latest().await.unwrap();
+    ///
+    /// println!("{sub:#?}");
+    ///
+    /// client.logout().await;
+    ///
+    /// ```
+    /// # Errors
+    /// Returns `Err` if the underlying [`reqwest::Client::post`] call fails.
+    #[tracing::instrument(name = "Logging in", skip_all)]
+    #[allow(unused_mut, clippy::future_not_send)]
+    pub async fn login<A: Authenticator>(mut self, mut authenticator: A) -> Result<Client<A>> {
+        authenticator.login(&self.client).await?;
+
+        Ok(Client {
+            client: self.client,
+            base_url: authenticator.base_url(),
+            #[cfg(feature = "shared_auth")]
+            authenticator: Arc::new(tokio::sync::RwLock::new(authenticator)),
+            #[cfg(not(feature = "shared_auth"))]
+            authenticator,
+        })
     }
 }
 
+impl Client<Password> {
+    /// Logs out of this [`Client`].
+    ///
+    /// # Errors
+    /// Returns `Err` if the underlying [`reqwest::Client::post`] call fails.
+    #[tracing::instrument(name = "Logging out", skip_all)]
+    pub async fn logout(&mut self) -> Result<()> {
+        #[cfg(feature = "shared_auth")]
+        {
+            let mut guard = self.authenticator.write().await;
+            guard.logout(&self.client).await?;
+        }
+        #[cfg(not(feature = "shared_auth"))]
+        {
+            self.authenticator.logout(&self.client).await?;
+        }
+        // TODO: Make this return an instance of Client<Anon>
+        Ok(())
+    }
+
+    /// Refreshes this [`Client`]'s token.
+    ///
+    /// This is the method you should call if you receive [`Error::Auth(AuthError::NeedsRefresh)`].
+    /// # Errors
+    /// Returns `Err` if the underlying [`reqwest::Client::post`] call fails.
+    #[tracing::instrument(name = "Refreshing token", skip_all)]
+    pub async fn refresh_token(&mut self) -> Result<()> {
+        #[cfg(feature = "shared_auth")]
+        {
+            let mut guard = self.authenticator.write().await;
+            guard.login(&self.client).await?;
+        }
+        #[cfg(not(feature = "shared_auth"))]
+        {
+            self.authenticator.login(&self.client).await?;
+        }
+        Ok(())
+    }
+}
 pub(crate) fn build_url(mut base: Url, path: &Path, params: &[(&str, String)]) -> Url {
     // Build the path
     {
@@ -182,7 +230,7 @@ where
 mod test {
     use std::path::PathBuf;
 
-    use crate::auth::{anonymous, password, Authenticator};
+    use crate::auth::{Anon, Authenticator, Password};
     use crate::subreddit::feed;
     use crate::{build_url, Client};
     use dotenv::{dotenv, var};
@@ -193,9 +241,7 @@ mod test {
         let username = var("REDDIT_USERNAME").unwrap();
         let pkg_name = var("CARGO_PKG_NAME").unwrap();
 
-        let mut client = Client::anonymous(&format!("{pkg_name} (by u/{username})"));
-
-        assert!(client.login().await.is_ok());
+        let client = Client::new(&format!("{pkg_name} (by u/{username})"));
 
         let sub = client.subreddit("argentina");
         let latest = sub.latest().await;
@@ -214,10 +260,11 @@ mod test {
         let client_id = var("REDDIT_CLIENT_ID").unwrap();
         let client_secret = var("REDDIT_CLIENT_SECRET").unwrap();
 
-        let auth = password::Auth::new(client_id, client_secret, username, password);
+        let auth = Password::new(client_id, client_secret, username, password);
 
-        let mut client = Client::new(auth, &user_agent);
-        assert!(client.login().await.is_ok());
+        let client = Client::new(&user_agent).login(auth).await;
+        assert!(client.is_ok(), "failed authenticating a client");
+        let mut client = client.unwrap();
 
         let sub = client.subreddit("argentina");
         let about = sub.about().await;
@@ -240,7 +287,7 @@ mod test {
 
     #[test]
     fn test_build_url() {
-        let auth = password::Auth::new("id", "secret", "user", "password");
+        let auth = Password::new("id", "secret", "user", "password");
         let base = auth.base_url();
 
         let path: PathBuf = ["r", "argentina", "controversial", ".json"]
@@ -256,7 +303,7 @@ mod test {
             "https://oauth.reddit.com/r/argentina/controversial/.json?count=0&limit=100&t=year&raw_json=1"
         );
 
-        let auth = anonymous::Auth::new();
+        let auth = Anon::new();
         let base = auth.base_url();
 
         let path: PathBuf = ["r", "argentina", "controversial", ".json"]

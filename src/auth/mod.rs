@@ -1,7 +1,10 @@
-pub mod anonymous;
-pub mod password;
+mod anonymous;
+mod password;
 use serde::Deserialize;
 use url::Url;
+
+pub type Password = self::password::Auth;
+pub type Anon = self::anonymous::Auth;
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(untagged)]

@@ -22,7 +22,10 @@ pub struct Subreddit<A: Authenticator> {
     pub name: Arc<str>,
 }
 
-impl<A: Authenticator + Send + Sync> Subreddit<A> {
+impl<A> Subreddit<A>
+where
+    A: Authenticator,
+{
     #[must_use]
     pub fn new(name: &str, client: Client<A>) -> Self {
         Self {
@@ -101,7 +104,10 @@ impl<A: Authenticator + Send + Sync> Subreddit<A> {
     }
 }
 
-impl<A: Authenticator + Send + Sync + 'static> Subreddit<A> {
+impl<A> Subreddit<A>
+where
+    A: Authenticator + 'static,
+{
     #[must_use]
     pub fn stream_submissions(
         self,
@@ -130,13 +136,12 @@ mod tests {
     use crate::Client;
 
     #[tokio::test]
-    async fn test_anon_auth() {
+    async fn test_sub_feed() {
         dotenv().unwrap();
         let username = var("REDDIT_USERNAME").unwrap();
         let pkg_name = env!("CARGO_PKG_NAME");
 
-        let mut client = Client::anonymous(&format!("{pkg_name} (by u/{username})"));
-        assert!(client.login().await.is_ok());
+        let client = Client::new(&format!("{pkg_name} (by u/{username})"));
 
         let sub = client.subreddit("argentina");
         let latest = sub.latest().await;

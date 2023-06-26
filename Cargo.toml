@@ -3,6 +3,7 @@ name = "reddit-api"
 version = "0.1.0"
 edition = "2021"
 authors = ["Mauro M. <24578415+Bocanada@users.noreply.github.com>"]
+repository = "https://github.com/bocanada/reddit-api"
 
 [lib]
 path = "src/lib.rs"

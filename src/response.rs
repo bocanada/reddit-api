@@ -48,7 +48,7 @@ impl<T> IntoIterator for Listing<T> {
 }
 
 impl<T> Generic<T> {
-    pub fn kind_name(&self) -> &str {
+    pub const fn kind_name(&self) -> &str {
         match self {
             Self::Listing { .. } => "listing",
             Self::Link { .. } => "link",

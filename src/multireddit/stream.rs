@@ -24,7 +24,7 @@ impl MultiSubmissionStreamer {
     /// [`Subreddit`] in this [`MultiReddit`] every
     /// [`interval`].
     #[must_use]
-    pub fn new<A: Authenticator + Send + Sync + 'static>(
+    pub fn new<A: Authenticator + 'static>(
         multi: Multireddit<A>,
         sort: Sort,
         interval: Duration,

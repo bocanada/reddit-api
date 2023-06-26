@@ -34,7 +34,7 @@ pub struct MultiInternal {
 }
 
 impl MultiInternal {
-    pub(crate) fn into_usable<A: Authenticator + Sync + Send>(self, client: &Client<A>) -> Multireddit<A> {
+    pub(crate) fn into_usable<A: Authenticator>(self, client: &Client<A>) -> Multireddit<A> {
         Multireddit {
             can_edit: self.can_edit,
             created: self.created,

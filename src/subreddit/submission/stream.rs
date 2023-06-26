@@ -26,7 +26,7 @@ impl SubmissionStreamer {
     /// It instantly starts polling the API for data by calling [`Subreddit::feed`] every
     /// [`interval`].
     #[must_use]
-    pub fn new<A: Authenticator + Send + Sync + 'static>(
+    pub fn new<A: Authenticator + 'static>(
         subreddit: Subreddit<A>,
         sort: Sort,
         interval: Duration,
@@ -44,12 +44,7 @@ impl SubmissionStreamer {
         rx: Option<Receiver<crate::Result<Submission>>>,
         tx: Sender<crate::Result<Submission>>,
     ) -> Self {
-        let rx = if let Some(rx) = rx {
-            rx
-        } else {
-            let (_, rx) = tokio::sync::mpsc::channel(1);
-            rx
-        };
+        let rx = rx.map_or_else(|| tokio::sync::mpsc::channel(1).1, |rx| rx);
 
         let jh: JoinHandle<Result<(), SendError<crate::Result<Submission>>>> = tokio::spawn({
             let mut every = tokio::time::interval(interval);
@@ -107,7 +102,6 @@ impl Stream for SubmissionStreamer {
     ///   let pkg_name = env!("CARGO_PKG_NAME");
     ///   let username = env!("REDDIT_USERNAME");
     ///   let mut client = Client::new(
-    ///       anonymous::Auth::new(),
     ///       &format!("{pkg_name} (by u/{username})"),
     ///   );
     ///   let sub = client.subreddit("rust");
@@ -132,7 +126,6 @@ impl Stream for SubmissionStreamer {
     /// let pkg_name = env!("CARGO_PKG_NAME");
     /// let username = env!("REDDIT_USERNAME");
     /// let mut client = Client::new(
-    ///     anonymous::Auth::new(),
     ///     &format!("{pkg_name} (by u/{username})"),
     /// );
     /// let sub = client.subreddit("rust");
@@ -166,8 +159,7 @@ mod tests {
         let pkg_name = env!("CARGO_PKG_NAME");
         let user_agent = format!("{pkg_name} (by u/{username})");
 
-        let mut client = Client::anonymous(&user_agent);
-        assert!(client.login().await.is_ok());
+        let client = Client::new(&user_agent);
 
         let sub = client.subreddit("rust");
         let mut rust_stream =
