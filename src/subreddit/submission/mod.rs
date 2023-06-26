@@ -38,19 +38,41 @@ pub struct MediaProperties {
 
 /// [`MediaData`]
 #[derive(Debug, Clone, serde::Deserialize)]
-pub struct MediaData {
-    /// The media type.
-    pub e: Option<Arc<str>>,
-    /// The media id.
-    pub id: Arc<str>,
-    /// The media mime type.
-    #[serde(rename = "m")]
-    pub mime: Arc<str>,
-    /// The media status.
-    pub status: Arc<str>,
-    /// The biggest preview.
-    #[serde(rename = "s")]
-    pub biggest_preview: Option<MediaProperties>,
+#[serde(tag = "e")]
+pub enum MediaData {
+    RedditVideo {
+        /// The media id.
+        id: Arc<str>,
+        /// The media status.
+        status: Arc<str>,
+        /// The biggest preview.
+        #[serde(rename = "s")]
+        biggest_preview: Option<MediaProperties>,
+    },
+    Image {
+        /// The media id.
+        id: Arc<str>,
+        /// The media mime type.
+        #[serde(rename = "m")]
+        mime: Arc<str>,
+        /// The media status.
+        status: Arc<str>,
+        /// The biggest preview.
+        #[serde(rename = "s")]
+        biggest_preview: Option<MediaProperties>,
+    },
+    AnimatedImage {
+        /// The media id.
+        id: Arc<str>,
+        /// The media mime type.
+        #[serde(rename = "m")]
+        mime: Arc<str>,
+        /// The media status.
+        status: Arc<str>,
+        /// The biggest preview.
+        #[serde(rename = "s")]
+        biggest_preview: Option<MediaProperties>,
+    },
 }
 
 /// [`RedditVideo`] contains the data of a video that was directly uploaded to Reddit.
