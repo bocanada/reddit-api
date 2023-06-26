@@ -67,14 +67,15 @@ impl<'a> Authenticator for Auth<'a> {
         match self.token {
             None => Err(Error::AlreadyLoggedOut),
             Some(ref token) => {
-                let url = Url::parse("https://reddit.com/api/v1/revoke_token")
-                    .expect("this to not panic");
+                let form = [
+                    ("token", token.as_ref()),
+                    ("token_type_hint", "access_token"),
+                ];
 
-                let form: [(&str, &str); 1] = [("token", token)];
-
-                let _ = client
-                    .post(url)
+                client
+                    .post("https://www.reddit.com/api/v1/revoke_token")
                     .form(&form)
+                    .basic_auth(&self.client_id, Some(&self.client_secret))
                     .send()
                     .await?
                     .error_for_status()?;

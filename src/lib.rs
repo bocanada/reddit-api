@@ -233,6 +233,9 @@ mod test {
             .await;
 
         assert!(latest.is_ok());
+        let res = dbg!(client.logout().await);
+
+        assert!(res.is_ok());
     }
 
     #[test]
