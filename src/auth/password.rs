@@ -1,26 +1,33 @@
-use std::{
-    borrow::Cow,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::{sync::Arc, time::Duration};
+
+use tokio::time::Instant;
 
 use url::Url;
 
 use crate::auth::{AuthResponse, Authenticator, Error};
 
 #[derive(Clone)]
-pub struct Auth<'a> {
-    client_id: Cow<'a, str>,
-    client_secret: Cow<'a, str>,
-    username: Cow<'a, str>,
-    password: Cow<'a, str>,
-    token: Option<Cow<'a, str>>,
-    expires_in: Option<u128>,
+pub struct Auth {
+    client_id: Arc<str>,
+    client_secret: Arc<str>,
+    username: Arc<str>,
+    password: Arc<str>,
+
+    token: Option<Arc<str>>,
+    expires_in: Option<Duration>,
+    refreshed_at: Option<Instant>,
 }
-impl<'a> Authenticator for Auth<'a> {
+
+impl Authenticator for Auth {
     fn auth_request(&self, req: reqwest::RequestBuilder) -> super::Result<reqwest::RequestBuilder> {
-        match self.token {
-            Some(ref token) => Ok(req.bearer_auth(token)),
-            None => Err(Error::LoggedOut),
+        let Some(ref token) = self.token else { return Err(Error::LoggedOut) };
+        let expires_in = self.expires_in.unwrap();
+        let refreshed_at = self.refreshed_at.unwrap();
+
+        if refreshed_at.elapsed() >= expires_in {
+            Err(Error::NeedsRefresh)
+        } else {
+            Ok(req.bearer_auth(token))
         }
     }
 
@@ -49,23 +56,19 @@ impl<'a> Authenticator for Auth<'a> {
                 access_token,
                 expires_in,
             } => {
-                self.token = Some(Cow::Owned(access_token));
-                self.expires_in = Some(
-                    u128::from(expires_in * 1000)
-                        + SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .unwrap()
-                            .as_millis(),
-                );
+                self.token = Some(Arc::from(access_token));
+                self.refreshed_at = Some(Instant::now());
+                self.expires_in = Some(Duration::from_secs(expires_in));
+
                 Ok(())
             }
-            AuthResponse::ErrorData { error } => Err(Error::TokenError(error)),
+            AuthResponse::ErrorData { error } => Err(Error::Token(error)),
         }
     }
 
     async fn logout(&mut self, client: &reqwest::Client) -> super::Result<()> {
         match self.token {
-            None => Err(Error::AlreadyLoggedOut),
+            None => Err(Error::LoggedOut),
             Some(ref token) => {
                 let form = [
                     ("token", token.as_ref()),
@@ -88,8 +91,8 @@ impl<'a> Authenticator for Auth<'a> {
     }
 }
 
-impl<'a> Auth<'a> {
-    pub fn new<S: Into<Cow<'a, str>>>(
+impl Auth {
+    pub fn new<S: Into<Arc<str>>>(
         client_id: S,
         client_secret: S,
         username: S,
@@ -102,11 +105,12 @@ impl<'a> Auth<'a> {
             password: password.into(),
             token: None,
             expires_in: None,
+            refreshed_at: None,
         }
     }
 }
 
-impl std::fmt::Debug for Auth<'_> {
+impl std::fmt::Debug for Auth {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Auth")
             .field("client_id", &self.client_id)

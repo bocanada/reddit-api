@@ -1,6 +1,6 @@
 #![deny(clippy::all, clippy::pedantic)]
-#![feature(async_iterator)]
 #![feature(async_fn_in_trait)]
+
 pub mod auth;
 pub mod errors;
 pub mod multireddit;

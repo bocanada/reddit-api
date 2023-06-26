@@ -17,14 +17,14 @@ pub(crate) enum AuthResponse {
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("client was already logged out")]
-    AlreadyLoggedOut,
-    #[error("client is logged out. unable to authorize request.")]
+    #[error("client is logged out.")]
     LoggedOut,
+    #[error("token has expired.")]
+    NeedsRefresh,
     #[error("reqwest error: {0}")]
     Request(#[from] reqwest::Error),
     #[error("token response error: {0}")]
-    TokenError(String),
+    Token(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
