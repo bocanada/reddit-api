@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct Options {
     /// `after` indicates the fullname of an item in the listing to use as the anchor point of the slice.
     after: Option<Arc<str>>,

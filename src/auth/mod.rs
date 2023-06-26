@@ -3,7 +3,7 @@ pub mod password;
 use serde::Deserialize;
 use url::Url;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(untagged)]
 pub(crate) enum AuthResponse {
     AuthData {
@@ -29,7 +29,7 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-pub trait Authenticator: Clone {
+pub trait Authenticator: Clone + Send + Sync {
     async fn login(&mut self, client: &reqwest::Client) -> Result<()>;
 
     async fn logout(&mut self, client: &reqwest::Client) -> Result<()>;

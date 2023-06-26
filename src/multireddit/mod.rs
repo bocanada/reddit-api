@@ -86,7 +86,6 @@ mod test {
     use dotenv::{dotenv, var};
 
     use super::MultiPath;
-    use crate::auth::anonymous;
     use crate::subreddit::feed::Sort;
     use crate::Client;
     use crate::Stream;
@@ -103,12 +102,10 @@ mod test {
     #[tokio::test]
     async fn anon_multi_user() {
         dotenv().unwrap();
-        let auth = anonymous::Auth::new();
-
         let pkg_name = env!("CARGO_PKG_NAME");
         let username = var("REDDIT_USERNAME").unwrap();
 
-        let mut client = Client::new(auth, &format!("{pkg_name} (by u/{username})"));
+        let mut client = Client::anonymous(&format!("{pkg_name} (by u/{username})"));
 
         assert!(client.login().await.is_ok());
 
@@ -120,12 +117,10 @@ mod test {
 
     #[tokio::test]
     async fn anon_multi_user_stream() {
-        let auth = anonymous::Auth::new();
-
         let pkg_name = env!("CARGO_PKG_NAME");
         let username = var("REDDIT_USERNAME").unwrap();
 
-        let mut client = Client::new(auth, &format!("{pkg_name} (by u/{username})"));
+        let mut client = Client::anonymous(&format!("{pkg_name} (by u/{username})"));
         assert!(client.login().await.is_ok());
 
         let multi = client

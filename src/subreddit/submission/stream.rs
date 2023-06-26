@@ -15,6 +15,7 @@ use crate::{
 
 use super::Submission;
 
+#[derive(Debug)]
 pub struct SubmissionStreamer {
     jh: JoinHandle<Result<(), SendError<crate::Result<Submission>>>>,
     rx: Receiver<crate::Result<Submission>>,
@@ -56,14 +57,15 @@ impl SubmissionStreamer {
 
             async move {
                 let sub = subreddit;
-                let mut seen = if skip_initial {
-                    if let Ok(items) = sub.feed(sort).await {
-                        // Start ticking
-                        every.tick().await;
-                        items.into_iter().map(|s| s.id).collect()
-                    } else {
-                        HashSet::with_capacity(100)
-                    }
+
+                let mut seen: HashSet<std::sync::Arc<str>> = if skip_initial {
+                    let set = sub.feed(sort).await.map_or_else(
+                        |_| HashSet::with_capacity(100),
+                        |items| items.into_iter().map(|s| s.id).collect(),
+                    );
+                    // This completes immediatly
+                    every.tick().await;
+                    set
                 } else {
                     HashSet::with_capacity(100)
                 };
@@ -152,7 +154,6 @@ impl Stream for SubmissionStreamer {
 mod tests {
     use dotenv::{dotenv, var};
 
-    use crate::auth::anonymous;
     use crate::subreddit::feed;
     use crate::Client;
     use crate::Stream;
@@ -161,13 +162,11 @@ mod tests {
     #[tokio::test]
     async fn test_stream() {
         dotenv().unwrap();
-        let auth = anonymous::Auth::new();
-
         let username = var("REDDIT_USERNAME").unwrap();
         let pkg_name = env!("CARGO_PKG_NAME");
         let user_agent = format!("{pkg_name} (by u/{username})");
 
-        let mut client = Client::new(auth, &user_agent);
+        let mut client = Client::anonymous(&user_agent);
         assert!(client.login().await.is_ok());
 
         let sub = client.subreddit("rust");

@@ -125,7 +125,6 @@ impl<A: Authenticator> std::fmt::Debug for Subreddit<A> {
 mod tests {
     use dotenv::{dotenv, var};
 
-    use crate::auth::anonymous;
     use crate::errors::Error;
     use crate::subreddit::feed;
     use crate::Client;
@@ -133,12 +132,10 @@ mod tests {
     #[tokio::test]
     async fn test_anon_auth() {
         dotenv().unwrap();
-        let auth = anonymous::Auth::new();
-
         let username = var("REDDIT_USERNAME").unwrap();
         let pkg_name = env!("CARGO_PKG_NAME");
 
-        let mut client = Client::new(auth, &format!("{pkg_name} (by u/{username})"));
+        let mut client = Client::anonymous(&format!("{pkg_name} (by u/{username})"));
         assert!(client.login().await.is_ok());
 
         let sub = client.subreddit("argentina");

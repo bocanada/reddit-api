@@ -1,15 +1,15 @@
-#[derive(Debug, serde::Deserialize, Clone)]
-#[serde(untagged)]
 /// [`RedditUrl`] represents a `Url` inside of Reddit.
 ///
 /// This is needed since `Submission.url` may link to another `Submission`, in which case it only contains
 /// the path of the `Url`.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(untagged)]
 pub enum RedditUrl {
     Url(url::Url),
     Permalink(String),
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize)]
 #[serde(tag = "kind")]
 /// Generic Reddit response, containing all of the valid `kind`s.
 pub enum Generic<T> {
@@ -29,7 +29,7 @@ pub enum Generic<T> {
     },
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize)]
 pub struct Listing<T> {
     pub after: Option<String>,
     pub before: Option<String>,

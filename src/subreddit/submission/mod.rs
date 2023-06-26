@@ -7,7 +7,7 @@ use url::Url;
 use crate::response::RedditUrl;
 
 /// [`GalleryData`] contains the data of an item in a Reddit gallery.
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize)]
 pub struct GalleryItem {
     /// The gallery item id.
     pub id: i64,
@@ -16,14 +16,14 @@ pub struct GalleryItem {
 }
 
 /// [`GalleryData`] contains all items in a Reddit gallery.
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize)]
 pub struct Gallery {
     /// The gallery items.
     pub items: Vec<GalleryItem>,
 }
 
 /// [`MediaData`]
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize)]
 pub struct MediaProperties {
     #[serde(rename = "u")]
     /// The media url.
@@ -37,7 +37,7 @@ pub struct MediaProperties {
 }
 
 /// [`MediaData`]
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize)]
 pub struct MediaData {
     /// The media type.
     pub e: Option<Arc<str>>,
@@ -54,14 +54,14 @@ pub struct MediaData {
 }
 
 /// [`RedditVideo`] contains the data of a video that was directly uploaded to Reddit.
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize)]
 pub struct RedditVideo {
     /// The video url.
     pub fallback_url: Url,
 }
 
 /// [`Media`]
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize)]
 pub struct Media {
     /// Where the media comes from.
     #[serde(rename = "type")]
@@ -70,7 +70,7 @@ pub struct Media {
     pub reddit_video: Option<RedditVideo>,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize)]
 pub struct Submission {
     /// The author of this post.
     pub author: Arc<str>,
@@ -96,11 +96,11 @@ pub struct Submission {
     /// The items of a gallery.
     pub gallery_data: Option<Gallery>,
     /// The media metadata.
-    pub media_metadata: Option<HashMap<String, MediaData>>,
+    pub media_metadata: Option<HashMap<Arc<str>, MediaData>>,
     /// This post's media.
     pub media: Option<Media>,
     #[serde(flatten)]
-    pub rest: HashMap<String, serde_json::Value>,
+    pub rest: HashMap<Arc<str>, serde_json::Value>,
 }
 
 pub type Submissions = Vec<Submission>;

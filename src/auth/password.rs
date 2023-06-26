@@ -16,7 +16,6 @@ pub struct Auth<'a> {
     token: Option<Cow<'a, str>>,
     expires_in: Option<u128>,
 }
-
 impl<'a> Authenticator for Auth<'a> {
     fn auth_request(&self, req: reqwest::RequestBuilder) -> super::Result<reqwest::RequestBuilder> {
         match self.token {
@@ -103,5 +102,24 @@ impl<'a> Auth<'a> {
             token: None,
             expires_in: None,
         }
+    }
+}
+
+impl std::fmt::Debug for Auth<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Auth")
+            .field("client_id", &self.client_id)
+            .field("client_secret", &"[redacted]")
+            .field("username", &self.username)
+            .field("password", &"[redacted]")
+            .field(
+                "token",
+                if self.token.is_none() {
+                    &"not logged in"
+                } else {
+                    &"[redacted]"
+                },
+            )
+            .finish_non_exhaustive()
     }
 }

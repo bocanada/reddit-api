@@ -31,6 +31,14 @@ pub struct Client<A: Authenticator> {
     base_url: Url,
 }
 
+pub trait Stream {
+    type Item;
+
+    fn stop(&mut self);
+
+    async fn next(&mut self) -> Option<Self::Item>;
+}
+
 impl<A: Authenticator + Send + Sync> Client<A> {
     #[must_use]
     pub fn subreddit(&self, subreddit: &str) -> Subreddit<A> {
@@ -47,39 +55,6 @@ impl<A: Authenticator + Send + Sync> Client<A> {
         match self.get_json::<MultiResponse>(&path, &[]).await? {
             Generic::LabeledMulti { data } => Ok(data.into_usable(self)),
             other => unimplemented!("expected LabeledMulti but got {}", other.kind_name()),
-        }
-    }
-}
-
-impl<A: Authenticator> Client<A> {
-    #[tracing::instrument(name = "GET", skip_all, fields(path = %path.display()))]
-    pub(crate) async fn get_json<T: DeserializeOwned>(
-        &self,
-        path: &Path,
-        params: &[(&str, String)],
-    ) -> Result<T> {
-        let url = build_url(self.base_url.clone(), path, params);
-
-        trace!(url = %url, "fetching");
-
-        let mut req = self.client.get(url);
-
-        #[cfg(feature = "shared_auth")]
-        {
-            let guard = self.authenticator.read().await;
-            req = guard.auth_request(req)?;
-        }
-
-        #[cfg(not(feature = "shared_auth"))]
-        {
-            req = self.authenticator.auth_request(req)?;
-        }
-
-        let resp = req.send().await?;
-        if resp.status().is_client_error() || resp.status().is_server_error() {
-            Err(crate::errors::Error::Reddit(resp.json().await?))
-        } else {
-            Ok(resp.json().await?)
         }
     }
 
@@ -132,6 +107,44 @@ impl<A: Authenticator> Client<A> {
         }
         Ok(())
     }
+
+    #[tracing::instrument(name = "GET", skip_all, fields(path = %path.display()))]
+    pub(crate) async fn get_json<T: DeserializeOwned>(
+        &self,
+        path: &Path,
+        params: &[(&str, String)],
+    ) -> Result<T> {
+        let url = build_url(self.base_url.clone(), path, params);
+
+        trace!(url = %url, "fetching");
+
+        let mut req = self.client.get(url);
+
+        #[cfg(feature = "shared_auth")]
+        {
+            let guard = self.authenticator.read().await;
+            req = guard.auth_request(req)?;
+        }
+
+        #[cfg(not(feature = "shared_auth"))]
+        {
+            req = self.authenticator.auth_request(req)?;
+        }
+
+        let resp = req.send().await?;
+        if resp.status().is_client_error() || resp.status().is_server_error() {
+            Err(crate::errors::Error::Reddit(resp.json().await?))
+        } else {
+            Ok(resp.json().await?)
+        }
+    }
+}
+
+impl Client<crate::auth::anonymous::Auth> {
+    #[must_use]
+    pub fn anonymous(user_agent: &str) -> Self {
+        Self::new(crate::auth::anonymous::Auth::new(), user_agent)
+    }
 }
 
 pub(crate) fn build_url(mut base: Url, path: &Path, params: &[(&str, String)]) -> Url {
@@ -154,12 +167,15 @@ pub(crate) fn build_url(mut base: Url, path: &Path, params: &[(&str, String)]) -
     base.clone()
 }
 
-pub trait Stream {
-    type Item;
-
-    fn stop(&mut self);
-
-    async fn next(&mut self) -> Option<Self::Item>;
+impl<A> std::fmt::Debug for Client<A>
+where
+    A: Authenticator,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Client")
+            .field("base_url", &self.base_url)
+            .finish_non_exhaustive()
+    }
 }
 
 #[cfg(test)]
@@ -174,12 +190,11 @@ mod test {
     #[tokio::test]
     async fn test_anon_auth() {
         dotenv().unwrap();
-        let auth = anonymous::Auth::new();
-
         let username = var("REDDIT_USERNAME").unwrap();
         let pkg_name = var("CARGO_PKG_NAME").unwrap();
 
-        let mut client = Client::new(auth, &format!("{pkg_name} (by u/{username})"));
+        let mut client = Client::anonymous(&format!("{pkg_name} (by u/{username})"));
+
         assert!(client.login().await.is_ok());
 
         let sub = client.subreddit("argentina");
