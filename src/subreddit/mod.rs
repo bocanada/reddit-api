@@ -102,19 +102,14 @@ where
     pub async fn hot(&self) -> crate::Result<Submissions> {
         self.feed(Sort::Hot).await
     }
-}
 
-impl<A> Subreddit<A>
-where
-    A: Authenticator + 'static,
-{
     #[must_use]
     pub fn stream_submissions(
         self,
         sort: Sort,
         interval: Duration,
         skip_initial: bool,
-    ) -> SubmissionStreamer {
+    ) -> SubmissionStreamer<A> {
         SubmissionStreamer::new(self, sort, interval, skip_initial)
     }
 }

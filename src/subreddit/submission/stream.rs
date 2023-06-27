@@ -1,96 +1,56 @@
-use std::collections::HashSet;
 use std::time::Duration;
+use std::{collections::HashSet, sync::Arc};
 
-use tokio::{
-    sync::mpsc::Receiver,
-    sync::mpsc::{error::SendError, Sender},
-    task::JoinHandle,
-};
-
+use super::Submission;
 use crate::{
     auth::Authenticator,
     subreddit::{feed::Sort, Subreddit},
     Stream,
 };
-
-use super::Submission;
+use tokio::time::{interval, Interval};
 
 #[derive(Debug)]
-pub struct SubmissionStreamer {
-    jh: JoinHandle<Result<(), SendError<crate::Result<Submission>>>>,
-    rx: Receiver<crate::Result<Submission>>,
+pub struct SubmissionStreamer<A: Authenticator> {
+    sub: Subreddit<A>,
+    sort: Sort,
+
+    interval: Interval,
+
+    skip_initial: bool,
+    is_stopped: bool,
+
+    /// This queue is only going to ever be built of [`Submission`]s we haven't already seen.
+    queue: Vec<Submission>,
+    seen: HashSet<Arc<str>>,
 }
 
-impl SubmissionStreamer {
+impl<A: Authenticator> SubmissionStreamer<A> {
     /// [`SubmissionStream::new`] creates a new [`SubmissionStream`] instance.
     /// It instantly starts polling the API for data by calling [`Subreddit::feed`] every
     /// [`interval`].
     #[must_use]
-    pub fn new<A: Authenticator + 'static>(
-        subreddit: Subreddit<A>,
+    pub fn new(
+        sub: Subreddit<A>,
         sort: Sort,
-        interval: Duration,
+        interval_period: Duration,
         skip_initial: bool,
     ) -> Self {
-        let (tx, rx) = tokio::sync::mpsc::channel(100);
-        Self::new_with_channels(subreddit, sort, interval, skip_initial, Some(rx), tx)
-    }
+        let mut interval = interval(interval_period);
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
-    pub(crate) fn new_with_channels<A: Authenticator + Send + Sync + 'static>(
-        subreddit: Subreddit<A>,
-        sort: Sort,
-        interval: Duration,
-        skip_initial: bool,
-        rx: Option<Receiver<crate::Result<Submission>>>,
-        tx: Sender<crate::Result<Submission>>,
-    ) -> Self {
-        let rx = rx.map_or_else(|| tokio::sync::mpsc::channel(1).1, |rx| rx);
-
-        let jh: JoinHandle<Result<(), SendError<crate::Result<Submission>>>> = tokio::spawn({
-            let mut every = tokio::time::interval(interval);
-            every.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-
-            async move {
-                let sub = subreddit;
-
-                let mut seen: HashSet<std::sync::Arc<str>> = if skip_initial {
-                    let set = sub.feed(sort).await.map_or_else(
-                        |_| HashSet::with_capacity(100),
-                        |items| items.into_iter().map(|s| s.id).collect(),
-                    );
-                    // This completes immediatly
-                    every.tick().await;
-                    set
-                } else {
-                    HashSet::with_capacity(100)
-                };
-
-                loop {
-                    every.tick().await;
-
-                    match sub.feed(sort).await {
-                        Ok(submissions) => {
-                            for submission in submissions {
-                                if seen.contains(&submission.id) {
-                                    continue;
-                                }
-                                seen.insert(submission.id.clone());
-                                tx.send(Ok(submission)).await?;
-                            }
-                        }
-                        Err(e) => {
-                            tx.send(Err(e)).await?;
-                        }
-                    }
-                }
-            }
-        });
-
-        Self { jh, rx }
+        Self {
+            sub,
+            sort,
+            interval,
+            queue: Vec::with_capacity(100),
+            seen: HashSet::with_capacity(100),
+            is_stopped: false,
+            skip_initial,
+        }
     }
 }
 
-impl Stream for SubmissionStreamer {
+impl<A: Authenticator> Stream for SubmissionStreamer<A> {
     type Item = crate::Result<Submission>;
 
     /// [`SubmissionStream::stop`] stops polling the API.
@@ -115,8 +75,9 @@ impl Stream for SubmissionStreamer {
     ///
     /// ```
     fn stop(&mut self) {
-        self.jh.abort();
+        self.is_stopped = true;
     }
+
     /// [`SubmissionStream::next`] returns the next item in the [`SubmissionStream`].
     /// This method will return `None` if [`SubmissionStream::stop`] was called and the stream buffer is empty.
     ///
@@ -138,8 +99,37 @@ impl Stream for SubmissionStreamer {
     /// }
     ///
     /// ```
-    async fn next(&mut self) -> Option<crate::Result<Submission>> {
-        self.rx.recv().await
+    async fn next(&mut self) -> Option<Self::Item> {
+        if let Some(post) = self.queue.pop().map(Ok) {
+            return Some(post);
+        }
+
+        // If we got here, the queue is empty.
+        // Loop until we get some new posts or self was stopped by calling [`Stream::stop`].
+        while !self.is_stopped {
+            self.interval.tick().await;
+
+            match self.sub.feed(self.sort).await {
+                Ok(posts) => {
+                    if self.skip_initial {
+                        self.seen.extend(posts.into_iter().map(|p| p.id));
+                        self.skip_initial = false;
+                        continue;
+                    }
+
+                    self.queue
+                        // Filter out the already seen values
+                        .extend(posts.into_iter().filter(|p| self.seen.insert(p.id.clone())));
+
+                    if let Some(post) = self.queue.pop().map(Ok) {
+                        return Some(post);
+                    }
+                    continue;
+                }
+                Err(e) => return Some(Err(e)),
+            }
+        }
+        None
     }
 }
 
