@@ -73,6 +73,20 @@ pub enum MediaData {
         #[serde(rename = "s")]
         biggest_preview: Option<MediaProperties>,
     },
+    /// Sometimes [`MediaData`] does not include a `e` field.
+    #[serde(default)]
+    Unknown {
+        /// The media id.
+        id: Arc<str>,
+        /// The media mime type.
+        #[serde(rename = "m")]
+        mime: Arc<str>,
+        /// The media status.
+        status: Arc<str>,
+        /// The biggest preview.
+        #[serde(rename = "s")]
+        biggest_preview: Option<MediaProperties>,
+    },
 }
 
 /// [`RedditVideo`] contains the data of a video that was directly uploaded to Reddit.

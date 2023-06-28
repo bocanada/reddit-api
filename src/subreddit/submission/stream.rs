@@ -118,7 +118,7 @@ impl<A: Authenticator> Stream for SubmissionStreamer<A> {
                     }
 
                     self.queue
-                        // Filter out the already seen values
+                        // Extend the queue with the posts we haven't seen.
                         .extend(posts.into_iter().filter(|p| self.seen.insert(p.id.clone())));
 
                     if let Some(post) = self.queue.pop().map(Ok) {
