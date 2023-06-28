@@ -19,7 +19,7 @@ pub struct GalleryItem {
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct Gallery {
     /// The gallery items.
-    pub items: Vec<GalleryItem>,
+    pub items: Arc<[GalleryItem]>,
 }
 
 /// [`MediaData`]
@@ -44,7 +44,7 @@ pub enum MediaData {
         /// The media id.
         id: Arc<str>,
         /// The media status.
-        status: Arc<str>,
+        status: Status,
         /// The biggest preview.
         #[serde(rename = "s")]
         biggest_preview: Option<MediaProperties>,
@@ -56,7 +56,7 @@ pub enum MediaData {
         #[serde(rename = "m")]
         mime: Arc<str>,
         /// The media status.
-        status: Arc<str>,
+        status: Status,
         /// The biggest preview.
         #[serde(rename = "s")]
         biggest_preview: Option<MediaProperties>,
@@ -68,25 +68,19 @@ pub enum MediaData {
         #[serde(rename = "m")]
         mime: Arc<str>,
         /// The media status.
-        status: Arc<str>,
+        status: Status,
         /// The biggest preview.
         #[serde(rename = "s")]
         biggest_preview: Option<MediaProperties>,
     },
-    /// Sometimes [`MediaData`] does not include a `e` field.
-    #[serde(default)]
-    Unknown {
-        /// The media id.
-        id: Arc<str>,
-        /// The media mime type.
-        #[serde(rename = "m")]
-        mime: Arc<str>,
-        /// The media status.
-        status: Arc<str>,
-        /// The biggest preview.
-        #[serde(rename = "s")]
-        biggest_preview: Option<MediaProperties>,
-    },
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+/// Represents the [`MediaData`] [`Status`].
+pub enum Status {
+    Valid,
+    Invalid,
 }
 
 /// [`RedditVideo`] contains the data of a video that was directly uploaded to Reddit.
