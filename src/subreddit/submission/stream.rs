@@ -1,4 +1,3 @@
-use std::time::Duration;
 use std::{collections::HashSet, sync::Arc};
 
 use super::Submission;
@@ -7,7 +6,7 @@ use crate::{
     subreddit::{feed::Sort, Subreddit},
     Stream,
 };
-use tokio::time::{interval, Interval};
+use tokio::time::Interval;
 
 #[derive(Debug)]
 pub struct SubmissionStreamer<A: Authenticator> {
@@ -29,15 +28,7 @@ impl<A: Authenticator> SubmissionStreamer<A> {
     /// It instantly starts polling the API for data by calling [`Subreddit::feed`] every
     /// [`interval`].
     #[must_use]
-    pub fn new(
-        sub: Subreddit<A>,
-        sort: Sort,
-        interval_period: Duration,
-        skip_initial: bool,
-    ) -> Self {
-        let mut interval = interval(interval_period);
-        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-
+    pub fn new(sub: Subreddit<A>, sort: Sort, interval: Interval, skip_initial: bool) -> Self {
         Self {
             sub,
             sort,
@@ -100,13 +91,16 @@ impl<A: Authenticator> Stream for SubmissionStreamer<A> {
     ///
     /// ```
     async fn next(&mut self) -> Option<Self::Item> {
-        if let Some(post) = self.queue.pop().map(Ok) {
-            return Some(post);
-        }
-
         // If we got here, the queue is empty.
         // Loop until we get some new posts or self was stopped by calling [`Stream::stop`].
-        while !self.is_stopped {
+        loop {
+            // !self.queue.is_empty()
+            if let Some(post) = self.queue.pop().map(Ok) {
+                return Some(post);
+            } else if self.is_stopped {
+                return None;
+            }
+
             self.interval.tick().await;
 
             match self.sub.feed(self.sort).await {
@@ -120,22 +114,18 @@ impl<A: Authenticator> Stream for SubmissionStreamer<A> {
                     self.queue
                         // Extend the queue with the posts we haven't seen.
                         .extend(posts.into_iter().filter(|p| self.seen.insert(p.id.clone())));
-
-                    if let Some(post) = self.queue.pop().map(Ok) {
-                        return Some(post);
-                    }
                     continue;
                 }
                 Err(e) => return Some(Err(e)),
             }
         }
-        None
     }
 }
 
 #[cfg(test)]
 mod tests {
     use dotenv::{dotenv, var};
+    use tokio::time::interval;
 
     use crate::subreddit::feed;
     use crate::Client;
@@ -151,13 +141,13 @@ mod tests {
 
         let client = Client::new(&user_agent);
 
+        let interv = interval(Duration::from_secs(200));
         let sub = client.subreddit("rust");
-        let mut rust_stream =
-            sub.stream_submissions(feed::Sort::New, Duration::from_millis(200), false);
+        let mut rust_stream = sub.stream_submissions(feed::Sort::New, interv, false);
 
+        let interv = interval(Duration::from_secs(200));
         let sub = client.subreddit("python");
-        let mut py_stream =
-            sub.stream_submissions(feed::Sort::New, Duration::from_millis(200), false);
+        let mut py_stream = sub.stream_submissions(feed::Sort::New, interv, false);
 
         let mut i = 0;
 

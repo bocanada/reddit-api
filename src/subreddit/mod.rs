@@ -2,11 +2,12 @@ pub mod feed;
 pub mod response;
 pub mod submission;
 
+use tokio::time::Interval;
+
 use crate::subreddit::feed::{Options, Sort};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
 
 use crate::auth::Authenticator;
 use crate::Client;
@@ -107,7 +108,7 @@ where
     pub fn stream_submissions(
         self,
         sort: Sort,
-        interval: Duration,
+        interval: Interval,
         skip_initial: bool,
     ) -> SubmissionStreamer<A> {
         SubmissionStreamer::new(self, sort, interval, skip_initial)
