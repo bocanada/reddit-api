@@ -7,18 +7,20 @@ repository = "https://github.com/bocanada/reddit-api"
 
 [lib]
 path = "src/lib.rs"
-doctest = false
+# doctest = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-reqwest = { version = "0.11.18", default-features = false, features = ["rustls-tls", "json"] }
+futures-util = { version = "0.3.28", features = ["alloc"], optional = true, default-features = false }
+reqwest = { version = "0.11.18", default-features = false, features = ["json"] }
 serde = { version = "1.0.164", default-features = false, features = ["derive", "rc"] }
 serde_json = "1.0.97"
 thiserror = "1.0.40"
 tokio = { version = "1.28.2", features = ["sync", "rt-multi-thread"] }
 tracing = { version = "0.1.37", features = ["log"] }
 url = { version = "2.4.0", features = ["serde"] }
+nanorand = { version = "0.7.0", default-features = false, features = ["tls"], optional = true }
 
 [dev-dependencies]
 dotenv = "0.15.0"
@@ -26,4 +28,7 @@ tokio = { version = "1.28.2", features = ["sync", "rt-multi-thread", "macros"] }
 
 
 [features]
+default = ["reqwest/default-tls"]
+stream = ["dep:futures-util", "dep:nanorand", "shared_auth"]
+rustls = ["reqwest/rustls-tls"]
 shared_auth = []

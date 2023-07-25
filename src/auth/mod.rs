@@ -3,7 +3,9 @@ mod password;
 use serde::Deserialize;
 use url::Url;
 
+/// Password based [`Authenticator`].
 pub type Password = self::password::Auth;
+/// Anonymous [`Authenticator`].
 pub type Anon = self::anonymous::Auth;
 
 #[derive(Deserialize, Debug, Clone)]
@@ -30,18 +32,23 @@ pub enum Error {
     Token(String),
 }
 
+/// Used in case the [`Authenticator`] calls fail.
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// Used to authenticate a [`crate::Client`] instance.
 pub trait Authenticator: Clone + Send + Sync {
+    /// Logs in to this [`Authenticator`].
     async fn login(&mut self, client: &reqwest::Client) -> Result<()>;
 
+    /// Logs out of this [`Authenticator`].
     async fn logout(&mut self, client: &reqwest::Client) -> Result<()>;
 
     /// # Errors
-    /// Returns `Err` if the user isn't logged in.
-    /// If the `Authenticator` is [`anonymous::Auth`], then it cannot fail.
+    /// Returns [`Err`] if the user isn't logged in.
+    /// If the [`Authenticator`] is [`Anon`], then it cannot fail.
     fn auth_request(&self, req: reqwest::RequestBuilder) -> Result<reqwest::RequestBuilder>;
 
+    /// Returns the base [`Url`] of this Reddit [`Authenticator`].
     fn base_url(&self) -> Url {
         Url::parse("https://oauth.reddit.com/").expect("this to be a valid url")
     }

@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+/// [`Options`] for calling the Reddit API.
 #[derive(Clone, Debug)]
 pub struct Options {
     /// `after` indicates the fullname of an item in the listing to use as the anchor point of the slice.

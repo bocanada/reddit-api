@@ -1,7 +1,7 @@
 #![deny(clippy::all, clippy::pedantic, clippy::perf)]
 #![warn(clippy::nursery)]
 #![feature(async_fn_in_trait)]
-#![allow(clippy::implicit_return)]
+#![feature(doc_cfg)]
 
 pub mod auth;
 pub mod errors;
@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 #[cfg(feature = "shared_auth")]
 use std::sync::Arc;
 
+use crate::errors::Error;
 use auth::{Anon, Authenticator, Password};
 use multireddit::{response::MultiResponse, MultiPath, Multireddit};
 use response::Generic;
@@ -21,8 +22,9 @@ use subreddit::Subreddit;
 use tracing::trace;
 use url::Url;
 
-pub type Result<T> = std::result::Result<T, crate::errors::Error>;
+pub type Result<T> = std::result::Result<T, Error>;
 
+/// The Reddit [`Client`].
 #[derive(Clone)]
 pub struct Client<A: Authenticator> {
     /// The [`Authenticator`] implementor we're going to use for this [`Client`].
@@ -37,27 +39,23 @@ pub struct Client<A: Authenticator> {
     base_url: Url,
 }
 
-pub trait Stream {
-    type Item;
-
-    fn stop(&mut self);
-
-    async fn next(&mut self) -> Option<Self::Item>;
-}
-
 impl<A> Client<A>
 where
     A: Authenticator,
 {
+    /// Create a new [`Subreddit`] instance.
     #[must_use]
     pub fn subreddit(&self, subreddit: &str) -> Subreddit<A> {
         Subreddit::new(subreddit, self.clone())
     }
 
+    /// Get a [`Multireddit`].
     /// # Errors
-    /// This function may error if `Reddit` returns an error.
-    /// It may also return [`Err`] if the underlying [`reqwest::Client::get`] call fails.
-    /// Or if the underlying [`reqwest::Response::json`] fails.
+    /// This function may error if the `Reddit` API returns an error.
+    ///
+    /// See:
+    ///    - [`reqwest::Client::get`]
+    ///    - [`reqwest::Response::json`]
     pub async fn multi(&self, multipath: MultiPath) -> Result<Multireddit<A>> {
         let path: PathBuf = multipath.into();
 
@@ -100,13 +98,20 @@ where
 }
 
 impl Client<Anon> {
-    /// Creates a new, logged out, [`Client`] instance.
+    /// Creates a new, anonymous, [`Client`] instance.
+    /// # Panics
+    ///
+    /// This method panics if a TLS backend cannot be initialized, or the resolver
+    /// cannot load the system configuration.
     #[must_use]
     pub fn new(user_agent: &str) -> Self {
-        let client = reqwest::Client::builder()
-            .user_agent(user_agent)
-            .build()
-            .expect("this to be a valid client");
+        let client = reqwest::Client::builder().user_agent(user_agent);
+
+        #[cfg(feature = "rustls")]
+        let client = client.use_rustls_tls();
+
+        let client = client.build().expect("this to be a valid client");
+
         let auth = Anon::new();
 
         Self {
@@ -121,28 +126,30 @@ impl Client<Anon> {
         }
     }
 
-    /// Logs in this [`Client`] instance.
+    /// Logs in this [`Anon`] [`Client`] instance.
     ///
     /// # Examples
     ///
     /// ```
-    /// use reddit_api::auth;
+    /// use reddit_api::{auth, Client};
     ///
-    /// let auth = auth::Password::new("client_id", "client_secret", "username", "password");
-    /// let client = reddit_api::Client::new("test by u/username").login(auth).await.unwrap();
-    ///
-    /// let sub = client.subreddit("argentina").latest().await.unwrap();
-    ///
-    /// println!("{sub:#?}");
-    ///
-    /// client.logout().await;
-    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> reddit_api::Result<()> {
+    ///  let auth = auth::Password::new(env!("REDDIT_CLIENT_ID"), env!("REDDIT_CLIENT_SECRET"), env!("REDDIT_USERNAME"), env!("REDDIT_PASSWORD"));
+    ///  let mut client = Client::new("test by u/username").login(auth).await.unwrap();
+    ///  
+    ///  let sub = client.subreddit("argentina").latest().await.unwrap();
+    ///  
+    ///  println!("{sub:#?}");
+    ///  
+    ///  client.logout().await
+    /// # }
     /// ```
     /// # Errors
     /// Returns `Err` if the underlying [`reqwest::Client::post`] call fails.
     #[tracing::instrument(name = "Logging in", skip_all)]
     #[allow(unused_mut, clippy::future_not_send)]
-    pub async fn login<A: Authenticator>(mut self, mut authenticator: A) -> Result<Client<A>> {
+    pub async fn login<A: Authenticator>(self, mut authenticator: A) -> Result<Client<A>> {
         authenticator.login(&self.client).await?;
 
         Ok(Client {
@@ -165,8 +172,11 @@ impl Client<Password> {
     pub async fn logout(&mut self) -> Result<()> {
         #[cfg(feature = "shared_auth")]
         {
-            let mut guard = self.authenticator.write().await;
-            guard.logout(&self.client).await?;
+            self.authenticator
+                .write()
+                .await
+                .logout(&self.client)
+                .await?;
         }
         #[cfg(not(feature = "shared_auth"))]
         {
@@ -178,15 +188,19 @@ impl Client<Password> {
 
     /// Refreshes this [`Client`]'s token.
     ///
-    /// This is the method you should call if you receive [`Error::Auth(AuthError::NeedsRefresh)`].
+    /// This is the method you should call if you receive
+    /// [`Error::AuthError`] [`crate::auth::Error::NeedsRefresh`].
+    ///
     /// # Errors
-    /// Returns `Err` if the underlying [`reqwest::Client::post`] call fails.
+    /// Returns `Err` if the token refresh fails.
+    /// See:
+    ///    - [`reqwest::Client::post`]
+    ///    - [`reqwest::Response::json`]
     #[tracing::instrument(name = "Refreshing token", skip_all)]
     pub async fn refresh_token(&mut self) -> Result<()> {
         #[cfg(feature = "shared_auth")]
         {
-            let mut guard = self.authenticator.write().await;
-            guard.login(&self.client).await?;
+            self.authenticator.write().await.login(&self.client).await?;
         }
         #[cfg(not(feature = "shared_auth"))]
         {

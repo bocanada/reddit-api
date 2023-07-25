@@ -20,7 +20,9 @@ pub struct Auth {
 
 impl Authenticator for Auth {
     fn auth_request(&self, req: reqwest::RequestBuilder) -> super::Result<reqwest::RequestBuilder> {
-        let Some(ref token) = self.token else { return Err(Error::LoggedOut) };
+        let Some(ref token) = self.token else {
+            return Err(Error::LoggedOut);
+        };
         let expires_in = self.expires_in.unwrap();
         let refreshed_at = self.refreshed_at.unwrap();
 

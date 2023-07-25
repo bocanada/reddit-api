@@ -1,12 +1,10 @@
-pub mod stream;
-
 use std::{collections::HashMap, sync::Arc};
 
 use url::Url;
 
 use crate::response::RedditUrl;
 
-/// [`GalleryData`] contains the data of an item in a Reddit gallery.
+/// [`GalleryItem`] contains the data of an item in a Reddit gallery.
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct GalleryItem {
     /// The gallery item id.
@@ -15,19 +13,19 @@ pub struct GalleryItem {
     pub media_id: Arc<str>,
 }
 
-/// [`GalleryData`] contains all items in a Reddit gallery.
+/// [`Gallery`] contains all items in a Reddit gallery.
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct Gallery {
     /// The gallery items.
     pub items: Arc<[GalleryItem]>,
 }
 
-/// [`MediaData`]
+/// [`MediaProperties`] contains the media properties of a [`MediaData`]
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct MediaProperties {
     #[serde(rename = "u")]
     /// The media url.
-    pub url: Option<Url>,
+    pub url: Option<RedditUrl>,
     #[serde(rename = "x")]
     /// The media width.
     pub width: usize,
@@ -36,7 +34,7 @@ pub struct MediaProperties {
     pub height: usize,
 }
 
-/// [`MediaData`]
+/// [`MediaData`] contains the media data of a [`Submission`].
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(tag = "e")]
 pub enum MediaData {
@@ -75,9 +73,9 @@ pub enum MediaData {
     },
 }
 
+/// Represents the [`MediaData`] [`Status`].
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
-/// Represents the [`MediaData`] [`Status`].
 pub enum Status {
     Valid,
     Invalid,
@@ -100,6 +98,7 @@ pub struct Media {
     pub reddit_video: Option<RedditVideo>,
 }
 
+/// Represents a single [`Submission`].
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct Submission {
     /// The author of this post.
@@ -129,8 +128,10 @@ pub struct Submission {
     pub media_metadata: Option<HashMap<Arc<str>, MediaData>>,
     /// This post's media.
     pub media: Option<Media>,
+    /// The rest of the attributes as a [`HashMap`].
     #[serde(flatten)]
     pub rest: HashMap<Arc<str>, serde_json::Value>,
 }
 
+/// Represents multiple [`Submission`]s.
 pub type Submissions = Vec<Submission>;

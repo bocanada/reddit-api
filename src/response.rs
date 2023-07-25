@@ -1,6 +1,6 @@
 /// [`RedditUrl`] represents a `Url` inside of Reddit.
 ///
-/// This is needed since `Submission.url` may link to another `Submission`, in which case it only contains
+/// This is needed since [`crate::Submission.url`] may link to another [`crate::Submission`], in which case it only contains
 /// the path of the `Url`.
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(untagged)]
@@ -9,9 +9,9 @@ pub enum RedditUrl {
     Permalink(String),
 }
 
+/// Generic Reddit response, containing all of the valid `kind`s.
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(tag = "kind")]
-/// Generic Reddit response, containing all of the valid `kind`s.
 pub enum Generic<T> {
     Listing {
         data: ListingKind<T>,
