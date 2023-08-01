@@ -1,4 +1,7 @@
 pub mod feed;
+#[cfg(feature = "stream")]
+#[doc(cfg(feature = "stream"))]
+pub(crate) mod multistream;
 pub mod submission;
 
 use crate::subreddit::feed::{Options, Sort};
@@ -7,18 +10,22 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+#[cfg(feature = "stream")]
+use self::multistream::StreamState;
 use crate::auth::Authenticator;
 use crate::Client;
 #[cfg(feature = "stream")]
 use futures_util::Stream;
-#[cfg(feature = "stream")]
-use std::collections::HashSet;
 #[cfg(feature = "stream")]
 use tokio::time::Interval;
 
 use self::submission::Submission;
 use self::submission::Submissions;
 use crate::response::Generic;
+
+#[cfg(feature = "stream")]
+#[doc(cfg(feature = "stream"))]
+pub use self::multistream::StreamBuilder;
 
 type FeedResponse = Generic<Submission>;
 
@@ -113,32 +120,36 @@ where
     #[cfg(feature = "stream")]
     pub(crate) fn stream_inner(
         self,
-        sort: Sort,
-        interval: Interval,
-        tick_first: bool,
+        state: StreamState,
     ) -> impl Stream<Item = crate::Result<Submission>> + Unpin {
         Box::pin(futures_util::stream::unfold(
-            (
-                self,
-                interval,
-                Vec::with_capacity(100),
-                HashSet::with_capacity(100),
-                tick_first,
-            ),
-            move |(this, mut interval, mut queue, mut set, tick_first)| async move {
-                if tick_first {
-                    interval.tick().await;
+            (self, state),
+            move |(this, mut state)| async move {
+                if state.tick_first {
+                    state.every.tick().await;
+                    state.tick_first = false;
                 }
 
                 loop {
-                    if let Some(post) = queue.pop().map(Ok) {
-                        return Some((post, (this, interval, queue, set, false)));
+                    if let Some(post) = state.queue.pop().map(Ok) {
+                        return Some((post, (this, state)));
                     }
-                    interval.tick().await;
-                    match this.feed(sort).await {
-                        Err(e) => return Some((Err(e), (this, interval, queue, set, false))),
+
+                    state.every.tick().await;
+                    match this.feed(state.sort).await {
+                        Err(e) => return Some((Err(e), (this, state))),
                         Ok(posts) => {
-                            queue.extend(posts.into_iter().filter(|p| set.insert(p.id.clone())));
+                            if state.skip_initial {
+                                state.skip_initial = false;
+                                state.seen.extend(posts.into_iter().map(|p| p.id));
+                                continue;
+                            }
+
+                            state.queue.extend(
+                                posts
+                                    .into_iter()
+                                    .filter(|p| state.seen.insert(p.id.clone())),
+                            );
                             continue;
                         }
                     }
@@ -154,8 +165,10 @@ where
         self,
         sort: Sort,
         interval: Interval,
+        skip_initial: bool,
     ) -> impl Stream<Item = crate::Result<Submission>> + Unpin {
-        self.stream_inner(sort, interval, false)
+        let state = StreamState::new(skip_initial, false, sort, interval);
+        self.stream_inner(state)
     }
 }
 
@@ -176,7 +189,7 @@ mod tests {
     use crate::Client;
 
     #[cfg(feature = "stream")]
-    use futures_util::StreamExt;
+    use crate::StreamExt;
     #[cfg(feature = "stream")]
     use tokio::time::interval;
 
@@ -193,7 +206,7 @@ mod tests {
 
         let sub = client.subreddit("argentina");
         let stream = sub
-            .stream(feed::Sort::New, interval(Duration::from_secs(200)))
+            .stream(feed::Sort::New, interval(Duration::from_secs(200)), false)
             .take(100)
             .fold(0, |state, _| async move { state + 1 })
             .await;
