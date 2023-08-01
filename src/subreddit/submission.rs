@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use url::Url;
 
@@ -10,14 +10,14 @@ pub struct GalleryItem {
     /// The gallery item id.
     pub id: i64,
     /// The gallery item media id.
-    pub media_id: Arc<str>,
+    pub media_id: String,
 }
 
 /// [`Gallery`] contains all items in a Reddit gallery.
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct Gallery {
     /// The gallery items.
-    pub items: Arc<[GalleryItem]>,
+    pub items: Vec<GalleryItem>,
 }
 
 /// [`MediaProperties`] contains the media properties of a [`MediaData`]
@@ -40,7 +40,7 @@ pub struct MediaProperties {
 pub enum MediaData {
     RedditVideo {
         /// The media id.
-        id: Arc<str>,
+        id: String,
         /// The media status.
         status: Status,
         /// The biggest preview.
@@ -49,10 +49,10 @@ pub enum MediaData {
     },
     Image {
         /// The media id.
-        id: Arc<str>,
+        id: String,
         /// The media mime type.
         #[serde(rename = "m")]
-        mime: Arc<str>,
+        mime: String,
         /// The media status.
         status: Status,
         /// The biggest preview.
@@ -61,10 +61,10 @@ pub enum MediaData {
     },
     AnimatedImage {
         /// The media id.
-        id: Arc<str>,
+        id: String,
         /// The media mime type.
         #[serde(rename = "m")]
-        mime: Arc<str>,
+        mime: String,
         /// The media status.
         status: Status,
         /// The biggest preview.
@@ -93,7 +93,7 @@ pub struct RedditVideo {
 pub struct Media {
     /// Where the media comes from.
     #[serde(rename = "type")]
-    pub media_type: Option<Arc<str>>,
+    pub media_type: Option<String>,
     /// The reddit video.
     pub reddit_video: Option<RedditVideo>,
 }
@@ -102,11 +102,11 @@ pub struct Media {
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct Submission {
     /// The author of this post.
-    pub author: Arc<str>,
+    pub author: String,
     /// The perma link to this post.
     pub permalink: RedditUrl,
     /// The base36 internal Reddit identifier for this post, e.g. 2qpqw.
-    pub id: Arc<str>,
+    pub id: String,
     /// The full 'Thing ID', consisting of a 'kind' and a base-36 identifier. The valid kinds are:
     /// - t1_ - Comment
     /// - t2_ - Account
@@ -115,22 +115,22 @@ pub struct Submission {
     /// - t5_ - Subreddit
     /// - t6_ - Award
     /// - t8_ - PromoCampaign
-    pub name: Arc<str>,
+    pub name: String,
     /// The linked URL, if this is a link post.
     pub url: Option<RedditUrl>,
     /// The title of the post.
-    pub title: Arc<str>,
+    pub title: String,
     /// The subreddit that this submission was posted in (not including `/r/`)
-    pub subreddit: Arc<str>,
+    pub subreddit: String,
     /// The items of a gallery.
     pub gallery_data: Option<Gallery>,
     /// The media metadata.
-    pub media_metadata: Option<HashMap<Arc<str>, MediaData>>,
+    pub media_metadata: Option<HashMap<String, MediaData>>,
     /// This post's media.
     pub media: Option<Media>,
     /// The rest of the attributes as a [`HashMap`].
     #[serde(flatten)]
-    pub rest: HashMap<Arc<str>, serde_json::Value>,
+    pub rest: HashMap<String, serde_json::Value>,
 }
 
 /// Represents multiple [`Submission`]s.
