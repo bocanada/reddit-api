@@ -41,8 +41,6 @@ pub enum MediaData {
     RedditVideo {
         /// The media id.
         id: String,
-        /// The media status.
-        status: Status,
         /// The biggest preview.
         #[serde(rename = "s")]
         biggest_preview: Option<MediaProperties>,
@@ -53,8 +51,6 @@ pub enum MediaData {
         /// The media mime type.
         #[serde(rename = "m")]
         mime: String,
-        /// The media status.
-        status: Status,
         /// The biggest preview.
         #[serde(rename = "s")]
         biggest_preview: Option<MediaProperties>,
@@ -65,8 +61,6 @@ pub enum MediaData {
         /// The media mime type.
         #[serde(rename = "m")]
         mime: String,
-        /// The media status.
-        status: Status,
         /// The biggest preview.
         #[serde(rename = "s")]
         biggest_preview: Option<MediaProperties>,
@@ -75,10 +69,11 @@ pub enum MediaData {
 
 /// Represents the [`MediaData`] [`Status`].
 #[derive(Debug, Clone, serde::Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Status {
-    Valid,
-    Invalid,
+#[serde(rename_all = "lowercase", tag = "status")]
+pub enum MediaStatus {
+    Valid(MediaData),
+    Invalid(MediaData),
+    Unprocessed,
 }
 
 /// [`RedditVideo`] contains the data of a video that was directly uploaded to Reddit.
@@ -125,7 +120,7 @@ pub struct Submission {
     /// The items of a gallery.
     pub gallery_data: Option<Gallery>,
     /// The media metadata.
-    pub media_metadata: Option<HashMap<String, MediaData>>,
+    pub media_metadata: Option<HashMap<String, MediaStatus>>,
     /// This post's media.
     pub media: Option<Media>,
     /// The rest of the attributes as a [`HashMap`].
