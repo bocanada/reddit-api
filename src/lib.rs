@@ -15,6 +15,8 @@ use std::sync::Arc;
 
 use crate::errors::Error;
 use auth::{Anon, Authenticator, Password};
+#[cfg(feature = "stream")]
+pub use futures_util::{Stream, StreamExt};
 use multireddit::{response::MultiResponse, MultiPath, Multireddit};
 use response::Generic;
 use serde::de::DeserializeOwned;
@@ -22,7 +24,7 @@ use subreddit::Subreddit;
 use tracing::trace;
 use url::Url;
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// The Reddit [`Client`].
 #[derive(Clone)]
@@ -209,6 +211,7 @@ impl Client<Password> {
         Ok(())
     }
 }
+
 pub(crate) fn build_url(mut base: Url, path: &Path, params: &[(&str, String)]) -> Url {
     // Build the path
     {

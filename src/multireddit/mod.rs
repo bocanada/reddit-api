@@ -4,19 +4,12 @@ use url::Url;
 
 use crate::response::RedditUrl;
 #[cfg(feature = "stream")]
-use crate::subreddit::submission::Submission;
+use crate::subreddit::multistream::StreamBuilder;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
 
 use crate::auth::Authenticator;
-#[cfg(feature = "stream")]
-use crate::subreddit::feed;
 use crate::subreddit::Subreddit;
-#[cfg(feature = "stream")]
-use futures_util::{stream::SelectAll, Stream};
-#[cfg(feature = "stream")]
-use std::ops::RangeBounds;
 
 #[derive(Clone, Debug)]
 pub struct Multireddit<A: Authenticator> {
@@ -38,27 +31,12 @@ pub struct Multireddit<A: Authenticator> {
 }
 
 #[cfg(feature = "stream")]
-type MultiStream<T> = SelectAll<T>;
-
 impl<A: Authenticator> Multireddit<A> {
-    /// Creates a new [`Stream`] of [`Submission`].
-    #[cfg(feature = "stream")]
+    /// Creates a new [`StreamBuilder`] with all the [`Subreddit`] added.
     #[doc(cfg(feature = "stream"))]
-    pub fn stream(
-        self,
-        sort: feed::Sort,
-        every: Duration,
-        spread: impl RangeBounds<u64> + Clone,
-    ) -> MultiStream<impl Stream<Item = crate::Result<Submission>>> {
-        use futures_util::stream::select_all;
-        use nanorand::{Rng, WyRand};
-        use tokio::time::interval;
-        let mut rng = WyRand::new();
-
-        select_all(self.subreddits.into_iter().map(|sub| {
-            let every = interval(every + Duration::from_secs(rng.generate_range(spread.clone())));
-            sub.stream_inner(sort, every, rng.generate())
-        }))
+    #[must_use = "builder does nothing unless built"]
+    pub fn stream(self) -> StreamBuilder<A> {
+        StreamBuilder::new().add_subs(self.subreddits)
     }
 }
 
@@ -135,17 +113,19 @@ mod test {
 
         let client = Client::new(&format!("{pkg_name} (by u/{username})"));
 
-        let multi = client
-            .multi(MultiPath::new("singshredcode", "animal_subbies"))
-            .await;
+        let multi = dbg!(
+            client
+                .multi(MultiPath::new("singshredcode", "animal_subbies"))
+                .await
+        );
         assert!(multi.is_ok());
         let multi = multi.unwrap();
         let n = multi
-            .stream(
-                crate::subreddit::feed::Sort::New,
-                Duration::from_secs(120),
-                20..=60,
-            )
+            .stream()
+            .sort(crate::subreddit::feed::Sort::New)
+            .poll_period(Duration::from_secs(120))
+            .build(30..=120)
+            .unwrap()
             .take(200)
             .take_while(|r| futures_util::future::ready(r.is_ok()))
             .fold(0, |state, next| async move {
