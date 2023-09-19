@@ -73,6 +73,7 @@ pub enum MediaData {
 pub enum MediaStatus {
     Valid(MediaData),
     Invalid(MediaData),
+    Failed,
     Unprocessed,
 }
 
