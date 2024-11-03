@@ -110,7 +110,7 @@ pub struct Submission {
     /// - t4_ - Message
     /// - t5_ - Subreddit
     /// - t6_ - Award
-    /// - t8_ - PromoCampaign
+    /// - t8_ - ``PromoCampaign``
     pub name: String,
     /// The linked URL, if this is a link post.
     pub url: Option<RedditUrl>,
@@ -124,6 +124,7 @@ pub struct Submission {
     pub media_metadata: Option<HashMap<String, MediaStatus>>,
     /// This post's media.
     pub media: Option<Media>,
+    pub crosspost_parent_list: Option<Vec<Submission>>,
     /// The rest of the attributes as a [`HashMap`].
     #[serde(flatten)]
     pub rest: HashMap<String, serde_json::Value>,

@@ -17,7 +17,7 @@ pub struct Options {
 }
 
 /// Allows you to request submissions by a `Sort`.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub enum Sort {
     /// Top posts by `TimePeriod`
     Top(TimePeriod),
@@ -28,6 +28,7 @@ pub enum Sort {
     /// Rising posts
     Rising,
     /// New posts
+    #[default]
     New,
 }
 

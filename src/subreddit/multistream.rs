@@ -42,6 +42,7 @@ pub enum Error {
 ///
 /// # }
 /// ```
+#[derive(Default)]
 pub struct StreamBuilder<A>
 where
     A: Authenticator,

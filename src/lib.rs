@@ -1,6 +1,5 @@
 #![deny(clippy::all, clippy::pedantic, clippy::perf)]
 #![warn(clippy::nursery)]
-#![feature(async_fn_in_trait)]
 #![feature(doc_cfg)]
 
 pub mod auth;

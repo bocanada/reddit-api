@@ -2,7 +2,7 @@ use url::Url;
 
 use super::Authenticator;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Auth;
 
 impl Auth {

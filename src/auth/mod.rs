@@ -1,5 +1,7 @@
 mod anonymous;
 mod password;
+use std::future::Future;
+
 use serde::Deserialize;
 use url::Url;
 
@@ -38,10 +40,14 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// Used to authenticate a [`crate::Client`] instance.
 pub trait Authenticator: Clone + Send + Sync {
     /// Logs in to this [`Authenticator`].
-    async fn login(&mut self, client: &reqwest::Client) -> Result<()>;
+    fn login(&mut self, client: &reqwest::Client)
+        -> impl Future<Output = Result<()>> + Send + Sync;
 
     /// Logs out of this [`Authenticator`].
-    async fn logout(&mut self, client: &reqwest::Client) -> Result<()>;
+    fn logout(
+        &mut self,
+        client: &reqwest::Client,
+    ) -> impl Future<Output = Result<()>> + Send + Sync;
 
     /// # Errors
     /// Returns [`Err`] if the user isn't logged in.
