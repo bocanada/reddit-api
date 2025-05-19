@@ -1,5 +1,5 @@
 use futures_util::{stream::SelectAll, Stream};
-use sqlx::SqlitePool;
+use sqlx::{Executor, SqlitePool};
 
 use crate::auth::Authenticator;
 
@@ -215,7 +215,7 @@ pub trait Storage {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct SetStorage(HashSet<String>);
 
 impl SetStorage {
@@ -235,18 +235,18 @@ impl Storage for SetStorage {
 pub struct SqliteStorage(SqlitePool);
 
 impl SqliteStorage {
-    #[must_use]
+    /// # Errors
+    /// This function will return a [`crate::Error`] if the table creation fails.
     pub async fn new(pool: SqlitePool) -> crate::Result<Self> {
         // the primary key is the row id...
-        sqlx::query!(
-            r#"CREATE TABLE IF NOT EXISTS post (
+        pool.execute(
+            r"CREATE TABLE IF NOT EXISTS post (
                 id TEXT  NOT NULL,
                 sub TEXT NOT NULL,
                 created_at DATETIME NOT NULL DEFAULT CURRENT_DATE,
                 CONSTRAINT u_id_sub UNIQUE (id, sub)
-            )"#
+            )",
         )
-        .execute(&pool)
         .await?;
 
         Ok(Self(pool))
@@ -255,13 +255,11 @@ impl SqliteStorage {
 
 impl Storage for SqliteStorage {
     async fn store(&mut self, sub: &Submission) -> crate::Result<bool> {
-        let rows_affected = sqlx::query!(
-            "INSERT OR IGNORE INTO post(id, sub) VALUES (?, ?)",
-            sub.id,
-            sub.subreddit,
-        )
-        .execute(&self.0)
-        .await?;
+        let rows_affected = sqlx::query("INSERT OR IGNORE INTO post(id, sub) VALUES (?, ?)")
+            .bind(&sub.id)
+            .bind(&sub.subreddit)
+            .execute(&self.0)
+            .await?;
 
         Ok(rows_affected.rows_affected() == 1)
     }
