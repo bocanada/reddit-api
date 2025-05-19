@@ -35,7 +35,7 @@ pub enum Error {
 }
 
 /// Used in case the [`Authenticator`] calls fail.
-pub type Result<T> = std::result::Result<T, Error>;
+type Result<T> = std::result::Result<T, Error>;
 
 /// Used to authenticate a [`crate::Client`] instance.
 pub trait Authenticator: Clone + Send + Sync {

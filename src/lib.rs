@@ -12,18 +12,19 @@ use std::path::{Path, PathBuf};
 #[cfg(feature = "shared_auth")]
 use std::sync::Arc;
 
-use crate::errors::Error;
-use auth::{Anon, Authenticator, Password};
+pub use crate::auth::{Anon, Authenticator, Password};
+pub use crate::errors::Error;
 #[cfg(feature = "stream")]
 pub use futures_util::{Stream, StreamExt};
 use multireddit::{response::MultiResponse, MultiPath, Multireddit};
+use reqwest::StatusCode;
 use response::Generic;
 use serde::de::DeserializeOwned;
-use subreddit::Subreddit;
+pub use subreddit::Subreddit;
 use tracing::trace;
 use url::Url;
 
-pub type Result<T, E = Error> = std::result::Result<T, E>;
+type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// The Reddit [`Client`].
 #[derive(Clone)]
@@ -35,7 +36,7 @@ pub struct Client<A: Authenticator> {
     #[cfg(not(feature = "shared_auth"))]
     authenticator: A,
     /// The internal client we use to make requests with.
-    client: reqwest::Client,
+    inner: reqwest::Client,
     /// The base API URL of this Reddit [`Client`]
     base_url: Url,
 }
@@ -76,7 +77,7 @@ where
 
         trace!(url = %url, "fetching");
 
-        let mut req = self.client.get(url);
+        let mut req = self.inner.get(url);
 
         #[cfg(feature = "shared_auth")]
         {
@@ -90,7 +91,15 @@ where
         }
 
         let resp = req.send().await?;
-        if resp.status().is_client_error() || resp.status().is_server_error() {
+        let status = resp.status();
+
+        if status == StatusCode::TOO_MANY_REQUESTS {
+            return Err(crate::Error::Reddit(
+                crate::errors::RedditError::RateLimited,
+            ));
+        }
+
+        if status.is_client_error() || status.is_server_error() {
             Err(crate::errors::Error::Reddit(resp.json().await?))
         } else {
             Ok(resp.json().await?)
@@ -123,7 +132,7 @@ impl Client<Anon> {
             #[cfg(feature = "shared_auth")]
             authenticator: Arc::new(tokio::sync::RwLock::new(auth)),
 
-            client,
+            inner: client,
         }
     }
 
@@ -151,10 +160,10 @@ impl Client<Anon> {
     #[tracing::instrument(name = "Logging in", skip_all)]
     #[allow(unused_mut, clippy::future_not_send)]
     pub async fn login<A: Authenticator>(self, mut authenticator: A) -> Result<Client<A>> {
-        authenticator.login(&self.client).await?;
+        authenticator.login(&self.inner).await?;
 
         Ok(Client {
-            client: self.client,
+            inner: self.inner,
             base_url: authenticator.base_url(),
             #[cfg(feature = "shared_auth")]
             authenticator: Arc::new(tokio::sync::RwLock::new(authenticator)),
@@ -173,15 +182,11 @@ impl Client<Password> {
     pub async fn logout(&mut self) -> Result<()> {
         #[cfg(feature = "shared_auth")]
         {
-            self.authenticator
-                .write()
-                .await
-                .logout(&self.client)
-                .await?;
+            self.authenticator.write().await.logout(&self.inner).await?;
         }
         #[cfg(not(feature = "shared_auth"))]
         {
-            self.authenticator.logout(&self.client).await?;
+            self.authenticator.logout(&self.inner).await?;
         }
         // TODO: Make this return an instance of Client<Anon>
         Ok(())
@@ -201,11 +206,11 @@ impl Client<Password> {
     pub async fn refresh_token(&mut self) -> Result<()> {
         #[cfg(feature = "shared_auth")]
         {
-            self.authenticator.write().await.login(&self.client).await?;
+            self.authenticator.write().await.login(&self.inner).await?;
         }
         #[cfg(not(feature = "shared_auth"))]
         {
-            self.authenticator.login(&self.client).await?;
+            self.authenticator.login(&self.inner).await?;
         }
         Ok(())
     }

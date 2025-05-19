@@ -32,6 +32,33 @@ pub enum Sort {
     New,
 }
 
+/// Allows you to request submissions by a `Sort`.
+#[derive(Copy, Clone, Debug, Default)]
+pub enum CommentSort {
+    /// Top comments.
+    Top,
+    /// Controversial comments.
+    Controversial,
+    /// Old comments.
+    Old,
+    /// New comments.
+    #[default]
+    New,
+}
+
+/// [`Options`] for calling the Reddit API.
+#[derive(Clone, Debug)]
+pub struct CommentOptions {
+    /// `depth` is the maximum depth of subtrees in the thread.
+    depth: Option<u64>,
+
+    /// `sort` is the order in which to return the comments.
+    sort: CommentSort,
+
+    /// `limit` is the maximum number of comments to return.
+    limit: u64,
+}
+
 /// Allows you to request a certain time period. This only works in certain situations, like when asking for top of a subreddit
 #[derive(Copy, Clone, Debug)]
 pub enum TimePeriod {
@@ -62,6 +89,18 @@ impl Sort {
     }
 }
 
+impl CommentSort {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::Top => "top",
+            Self::Controversial => "controversial",
+            Self::Old => "old",
+            Self::New => "new",
+        }
+    }
+}
+
 impl TimePeriod {
     #[must_use]
     pub const fn as_str(&self) -> &'static str {
@@ -82,6 +121,16 @@ impl Default for Options {
             after: None,
             before: None,
             count: 0,
+            limit: 100,
+        }
+    }
+}
+
+impl Default for CommentOptions {
+    fn default() -> Self {
+        Self {
+            depth: Some(1),
+            sort: CommentSort::Old,
             limit: 100,
         }
     }
@@ -133,6 +182,46 @@ impl From<Options> for Vec<(&str, String)> {
 
         if let Some(before) = value.before {
             params.push(("before", before.to_string()));
+        }
+
+        params
+    }
+}
+
+impl CommentOptions {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    #[must_use]
+    pub const fn depth(mut self, depth: u64) -> Self {
+        self.depth = Some(depth);
+        self
+    }
+
+    #[must_use]
+    pub const fn limit(mut self, limit: u64) -> Self {
+        self.limit = limit;
+        self
+    }
+
+    #[must_use]
+    pub const fn sort(mut self, sort: CommentSort) -> Self {
+        self.sort = sort;
+        self
+    }
+}
+
+impl From<CommentOptions> for Vec<(&str, String)> {
+    fn from(value: CommentOptions) -> Self {
+        let mut params = vec![
+            ("limit", value.limit.to_string()),
+            ("sort", value.sort.as_str().to_string()),
+        ];
+
+        if let Some(depth) = value.depth {
+            params.push(("depth", depth.to_string()));
         }
 
         params

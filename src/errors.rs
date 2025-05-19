@@ -1,3 +1,6 @@
+#[cfg(feature = "stream")]
+use sqlx;
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("reqwest error: {0}")]
@@ -6,6 +9,10 @@ pub enum Error {
     Reddit(#[from] RedditError),
     #[error("authentication error: {0}")]
     AuthError(#[from] crate::auth::Error),
+
+    #[cfg(feature = "stream")]
+    #[error("authentication error: {0}")]
+    Sql(#[from] sqlx::Error),
 }
 
 #[derive(Debug, thiserror::Error, serde::Deserialize)]
@@ -19,4 +26,6 @@ pub enum RedditError {
     },
     #[error("{message}")]
     Simple { message: String },
+    #[error("rate limited")]
+    RateLimited,
 }

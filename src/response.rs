@@ -64,7 +64,10 @@ impl RedditUrl {
         match self {
             Self::Url(u) => u.clone(),
             Self::Permalink(perma) => {
-                let u = url::Url::parse("https://www.reddit.com/").expect("this to be valid URL");
+                let Ok(u) = url::Url::parse("https://www.reddit.com/") else {
+                    unreachable!("url is always valid")
+                };
+
                 u.join(perma).expect("this to be a valid URL")
             }
         }

@@ -4,7 +4,7 @@ use url::Url;
 
 use crate::response::RedditUrl;
 #[cfg(feature = "stream")]
-use crate::subreddit::multistream::StreamBuilder;
+use crate::subreddit::multistream::{Storage, StreamBuilder};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -35,8 +35,10 @@ impl<A: Authenticator> Multireddit<A> {
     /// Creates a new [`StreamBuilder`] with all the [`Subreddit`] added.
     #[doc(cfg(feature = "stream"))]
     #[must_use = "builder does nothing unless built"]
-    pub fn stream(self) -> StreamBuilder<A> {
-        StreamBuilder::new().add_subs(self.subreddits)
+    pub fn stream<S: Storage + Clone>(self, storage: S) -> StreamBuilder<A, S> {
+        StreamBuilder::new()
+            .add_subs(self.subreddits)
+            .set_storage(storage)
     }
 }
 
@@ -80,7 +82,7 @@ mod test {
     use futures_util::StreamExt;
 
     use super::MultiPath;
-    use crate::Client;
+    use crate::{subreddit::multistream::SetStorage, Client};
 
     #[test]
     fn multipath_to_pathbuf() {
@@ -105,6 +107,7 @@ mod test {
         assert!(multi.is_ok());
     }
 
+    #[cfg(feature = "stream")]
     #[tokio::test]
     async fn anon_multi_stream() {
         dotenv().unwrap();
@@ -121,7 +124,7 @@ mod test {
         assert!(multi.is_ok());
         let multi = multi.unwrap();
         let n = multi
-            .stream()
+            .stream(SetStorage::new())
             .sort(crate::subreddit::feed::Sort::New)
             .poll_period(Duration::from_secs(120))
             .build(30..=120)
