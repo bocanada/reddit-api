@@ -1,7 +1,7 @@
 pub mod feed;
 #[cfg(feature = "stream")]
 #[doc(cfg(feature = "stream"))]
-pub(crate) mod multistream;
+pub mod multistream;
 pub mod submission;
 
 use crate::subreddit::feed::{Options, Sort};

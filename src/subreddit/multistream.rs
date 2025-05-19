@@ -236,12 +236,7 @@ pub struct SqliteStorage(SqlitePool);
 
 impl SqliteStorage {
     #[must_use]
-    pub const fn new(pool: SqlitePool) -> Self {
-        Self(pool)
-    }
-
-    /// Call this function to create the necessary tables to Store the reddit API data.
-    pub async fn init(&self) -> crate::Result<()> {
+    pub async fn new(pool: SqlitePool) -> crate::Result<Self> {
         // the primary key is the row id...
         sqlx::query!(
             r#"CREATE TABLE IF NOT EXISTS post (
@@ -251,10 +246,10 @@ impl SqliteStorage {
                 CONSTRAINT u_id_sub UNIQUE (id, sub)
             )"#
         )
-        .execute(&self.0)
+        .execute(&pool)
         .await?;
 
-        Ok(())
+        Ok(Self(pool))
     }
 }
 
