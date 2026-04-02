@@ -99,6 +99,23 @@ where
 }
 
 impl Client<Anon> {
+    /// Creates a new, anonymous, [`Client`] with a custom [`reqwest::Client`].
+    #[must_use]
+    pub fn new_with_client(client: reqwest::Client) -> Self {
+        let auth = Anon::new();
+
+        Self {
+            base_url: auth.base_url(),
+
+            #[cfg(not(feature = "shared_auth"))]
+            authenticator: auth,
+            #[cfg(feature = "shared_auth")]
+            authenticator: Arc::new(tokio::sync::RwLock::new(auth)),
+
+            client,
+        }
+    }
+
     /// Creates a new, anonymous, [`Client`] instance.
     /// # Panics
     ///
